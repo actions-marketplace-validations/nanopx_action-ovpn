@@ -3091,13 +3091,37 @@ var __webpack_async_dependencies__ = __webpack_handle_async_dependencies__([_mai
 
 
 
+const disconnect = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('disconnect');
 const isPost = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getState('isPost');
+const isCleanedUp = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getState('isCleanedUp');
+const pid = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('pid') || _actions_core__WEBPACK_IMPORTED_MODULE_0__.getState('pid');
+async function cleanup() {
+    try {
+        await (0,_post__WEBPACK_IMPORTED_MODULE_2__/* .run */ .K)(pid);
+        _actions_core__WEBPACK_IMPORTED_MODULE_0__.saveState('isCleanedUp', 'true');
+    }
+    catch (e) {
+        if (e instanceof Error) {
+            _actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed(e.message);
+        }
+    }
+}
 async function run() {
+    if (isCleanedUp) {
+        _actions_core__WEBPACK_IMPORTED_MODULE_0__.info('VPN already disconnected.');
+        return;
+    }
+    if (disconnect) {
+        _actions_core__WEBPACK_IMPORTED_MODULE_0__.info('Disconnecting VPN using `disconnect` option.');
+        await cleanup();
+        return;
+    }
     if (!isPost) {
         _actions_core__WEBPACK_IMPORTED_MODULE_0__.saveState('isPost', 'true');
         try {
             const pid = await (0,_main__WEBPACK_IMPORTED_MODULE_1__/* .run */ .K)();
             _actions_core__WEBPACK_IMPORTED_MODULE_0__.saveState('pid', pid);
+            _actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('pid', pid);
         }
         catch (e) {
             if (e instanceof Error) {
@@ -3106,15 +3130,11 @@ async function run() {
         }
     }
     else {
-        try {
-            const pid = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getState('pid');
-            await (0,_post__WEBPACK_IMPORTED_MODULE_2__/* .run */ .K)(pid);
+        if (isCleanedUp) {
+            _actions_core__WEBPACK_IMPORTED_MODULE_0__.info('VPN already disconnected.');
+            return;
         }
-        catch (e) {
-            if (e instanceof Error) {
-                _actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed(e.message);
-            }
-        }
+        await cleanup();
     }
 }
 run();
@@ -3144,6 +3164,7 @@ const { $ } = await __nccwpck_require__.e(/* import() */ 670).then(__nccwpck_req
 const ovpnConfig = _actions_core__WEBPACK_IMPORTED_MODULE_1__.getInput('ovpnConfig');
 const username = _actions_core__WEBPACK_IMPORTED_MODULE_1__.getInput('username');
 const password = _actions_core__WEBPACK_IMPORTED_MODULE_1__.getInput('password');
+const domains = _actions_core__WEBPACK_IMPORTED_MODULE_1__.getInput('domains');
 const configFile = '.config.ovpn';
 const logFile = '.openvpn.log';
 const pidFile = '.openvpn.pid';
@@ -3153,6 +3174,15 @@ async function run() {
         node_fs_promises__WEBPACK_IMPORTED_MODULE_0__.writeFile(configFile, ovpnConfig, { mode: 0o600 }),
         node_fs_promises__WEBPACK_IMPORTED_MODULE_0__.writeFile(logFile, '', { mode: 0o600 }),
     ]);
+    if (domains) {
+        const domainList = domains.split(/\r|\n/).map((domain) => domain.trim());
+        _actions_core__WEBPACK_IMPORTED_MODULE_1__.info(`Allowed domains: ${domainList.join(', ')}`);
+        const results = await Promise.all(domainList.map((domain) => $ `dig -4 -t A +short ${domain}`));
+        const ips = results.flatMap((result) => result.stdout.split(/\r|\n/));
+        _actions_core__WEBPACK_IMPORTED_MODULE_1__.info(`Resolved IPs: ${ips.join(', ')}`);
+        const routes = ips.map((ip) => `route ${ip} 255.255.255.255`);
+        await node_fs_promises__WEBPACK_IMPORTED_MODULE_0__.appendFile(configFile, `\nroute-nopull\n${routes.join('\n')}\n`);
+    }
     // username & password auth
     if (username && password) {
         await Promise.all([
@@ -3212,7 +3242,7 @@ async function run(pid) {
         _actions_core__WEBPACK_IMPORTED_MODULE_0__.warning('Could not find process');
         return;
     }
-    _actions_core__WEBPACK_IMPORTED_MODULE_0__.info('Cleaning up VPN connection...');
+    _actions_core__WEBPACK_IMPORTED_MODULE_0__.info(`Cleaning up VPN connection with pid: ${pid}`);
     try {
         await $ `sudo kill ${pid}`;
         _actions_core__WEBPACK_IMPORTED_MODULE_0__.info('Done.');

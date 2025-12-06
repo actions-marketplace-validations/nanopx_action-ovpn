@@ -1,4 +1,4 @@
-name: 'test'
+name: 'test-disconnect'
 
 on: [push]
 
@@ -15,7 +15,14 @@ jobs:
 
       - name: Connect to VPN
         uses: ./
+        id: ovpn
         with:
           ovpnConfig: ${{ secrets.OVPN_CONFIG }}
           username: ${{ secrets.OVPN_USERNAME }}
           password: ${{ secrets.OVPN_PASSWORD }}
+
+      - name: Disconnect from VPN
+        uses: ./
+        with:
+          pid: ${{ steps.ovpn.outputs.pid }}
+          disconnect: true

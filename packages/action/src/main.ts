@@ -7,6 +7,7 @@ const { $ } = await import('execa')
 const ovpnConfig: string = core.getInput('ovpnConfig')
 const username: string = core.getInput('username')
 const password: string = core.getInput('password')
+const domains: string = core.getInput('domains')
 const configFile = '.config.ovpn'
 const logFile = '.openvpn.log'
 const pidFile = '.openvpn.pid'
@@ -17,6 +18,20 @@ export async function run(): Promise<string> {
     fs.writeFile(configFile, ovpnConfig, { mode: 0o600 }),
     fs.writeFile(logFile, '', { mode: 0o600 }),
   ])
+
+  if (domains) {
+    const domainList = domains.split(/\r|\n/).map((domain) => domain.trim())
+    core.info(`Allowed domains: ${domainList.join(', ')}`)
+
+    const results = await Promise.all(domainList.map((domain) => $`dig -4 -t A +short ${domain}`))
+    const ips = results.flatMap((result) => result.stdout.split(/\r|\n/))
+
+    core.info(`Resolved IPs: ${ips.join(', ')}`)
+
+    const routes = ips.map((ip) => `route ${ip} 255.255.255.255`)
+
+    await fs.appendFile(configFile, `\nroute-nopull\n${routes.join('\n')}\n`)
+  }
 
   // username & password auth
   if (username && password) {

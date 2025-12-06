@@ -6,15 +6,26 @@ branding:
   icon: globe
 inputs:
   ovpnConfig:
-    required: true
-    description: 'Content of .ovpn config file'
+    required: false
+    description: 'Content of .ovpn config file (Required when disconnect is false)'
   username:
     required: false
     description: 'OpenVPN username'
   password:
     required: false
     description: 'OpenVPN password'
-# outputs:
+  disconnect:
+    required: false
+    description: 'Disconnect from VPN'
+  domains:
+    required: false
+    description: 'Use VPN for specified domains'
+  pid:
+    required: false
+    description: 'OpenVPN process ID (Required when disconnect is true)'
+outputs:
+  pid:
+    description: 'OpenVPN process ID'
 runs:
   using: 'node20'
   main: 'packages/action/dist/index.js'
